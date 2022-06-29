@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"os"
+	"time"
 )
 
 type RSVP struct {
@@ -16,6 +19,7 @@ type FormData struct {
 	Errors []string
 }
 
+var logger = log.New(os.Stdout, "rsvp-party-invite", log.LstdFlags|log.Lshortfile)
 var responses = make([]*RSVP, 0, 10)
 var templates = make(map[string]*template.Template, 3)
 
@@ -34,7 +38,6 @@ func loadTemplates() {
 }
 
 func welcomeHandler(writer http.ResponseWriter, req *http.Request) {
-	fmt.Println("hit the endpoint")
 	templates["welcome"].Execute(writer, nil)
 }
 
@@ -88,11 +91,20 @@ func main() {
 	loadTemplates()
 
 	http.HandleFunc("/", welcomeHandler)
-	http.HandleFunc("/list", listHandler)
-	http.HandleFunc("/form", formHandler)
+	http.HandleFunc("/list", Logger(listHandler))
+	http.HandleFunc("/form", Logger(formHandler))
 
 	err := http.ListenAndServe(":5000", nil)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+// middleware for logging request processing time
+func Logger(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		next(w, r)
+		logger.Printf("Request for %s processed in %s \n", r.URL.Host+r.URL.Path, time.Since(startTime))
 	}
 }
